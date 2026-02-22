@@ -1,0 +1,14 @@
+services:
+  backend:
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+
+  test:
+    build:
+      context: .
+      target: test
