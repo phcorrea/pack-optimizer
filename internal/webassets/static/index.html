@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pack Optimizer</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="card">
+        <h1>Pack Optimizer</h1>
+        <p>Optimize pack combinations for a customer order.</p>
+
+        <form id="optimize-form">
+          <label for="items-ordered">Items ordered</label>
+          <input id="items-ordered" type="number" min="1" required />
+
+          <label for="pack-sizes">Pack sizes</label>
+          <input
+            id="pack-sizes"
+            type="text"
+            placeholder="e.g. 250,500,1000,2000,5000"
+            value="250,500,1000,2000,5000"
+            required
+          />
+          <button type="submit">Optimize</button>
+        </form>
+
+        <div id="result" class="result hidden">
+          <h2>Result</h2>
+          <p id="summary"></p>
+          <table>
+            <thead>
+              <tr>
+                <th>Pack size</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody id="packs-body"></tbody>
+          </table>
+        </div>
+
+        <p id="error" class="error hidden"></p>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
