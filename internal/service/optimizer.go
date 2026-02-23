@@ -6,12 +6,17 @@ import (
 	"sort"
 )
 
+const maxInt32Value = int(^uint32(0) >> 1)
+
 var (
-	ErrInvalidItemsOrdered = errors.New("items_ordered must be greater than zero")
-	ErrInvalidPackSizes    = errors.New("pack_sizes must contain at least one positive integer")
-	errNoPackingPlan       = errors.New("no valid packing combination found")
-	errReconstructPlan     = errors.New("unable to reconstruct packing combination")
+	ErrInvalidItemsOrdered  = errors.New("items_ordered must be greater than zero")
+	ErrInvalidPackSizes     = errors.New("pack_sizes must contain at least one positive integer")
+	ErrOptimizationTooLarge = errors.New("optimization range is too large")
+	errNoPackingPlan        = errors.New("no valid packing combination found")
+	errReconstructPlan      = errors.New("unable to reconstruct packing combination")
 )
+
+const maxTableEntries = 2_000_000
 
 type PackBreakdown struct {
 	Size  int `json:"size"`
@@ -39,6 +44,9 @@ func NormalizePackSizes(packSizes []int) ([]int, error) {
 		if size <= 0 {
 			return nil, fmt.Errorf("%w: %d", ErrInvalidPackSizes, size)
 		}
+		if size > maxInt32Value {
+			return nil, fmt.Errorf("%w: %d exceeds int32 max value %d", ErrInvalidPackSizes, size, maxInt32Value)
+		}
 		if _, duplicate := seen[size]; duplicate {
 			continue
 		}
@@ -60,13 +68,19 @@ func Optimize(itemsOrdered int, packSizes []int) (Plan, error) {
 	if itemsOrdered <= 0 {
 		return Plan{}, ErrInvalidItemsOrdered
 	}
+	if itemsOrdered > maxInt32Value {
+		return Plan{}, fmt.Errorf("%w: %d exceeds int32 max value %d", ErrInvalidItemsOrdered, itemsOrdered, maxInt32Value)
+	}
 
 	normalized, err := NormalizePackSizes(packSizes)
 	if err != nil {
 		return Plan{}, err
 	}
 
-	table := newPackingTable(itemsOrdered, normalized)
+	table, err := newPackingTable(itemsOrdered, normalized)
+	if err != nil {
+		return Plan{}, err
+	}
 	table.buildOptimalPackingTable()
 
 	chosenTotal, err := table.chooseFulfillmentTotal()
@@ -101,7 +115,7 @@ type packingTable struct {
 // It expects sortedPackSizes to be normalized and sorted in descending order.
 // All totals start as unreachable except total=0 (the base case), and
 // backtracking pointers are seeded so buildBreakdown can reconstruct a valid plan.
-func newPackingTable(itemsOrdered int, sortedPackSizes []int) packingTable {
+func newPackingTable(itemsOrdered int, sortedPackSizes []int) (packingTable, error) {
 	// unset marks entries that do not have a predecessor yet.
 	const unset = -1
 
@@ -112,7 +126,14 @@ func newPackingTable(itemsOrdered int, sortedPackSizes []int) packingTable {
 
 	// We only need totals up to itemsOrdered + largestPackSize - 1.
 	// Any larger total would never be the minimum valid fulfillment.
-	fulfillmentLimit := itemsOrdered + largestPackSize - 1
+	fulfillmentLimit64 := int64(itemsOrdered) + int64(largestPackSize) - 1
+	if fulfillmentLimit64 <= 0 {
+		return packingTable{}, fmt.Errorf("%w: invalid fulfillment range", ErrOptimizationTooLarge)
+	}
+	if fulfillmentLimit64+1 > maxTableEntries {
+		return packingTable{}, fmt.Errorf("%w: requires %d table entries (max %d)", ErrOptimizationTooLarge, fulfillmentLimit64+1, maxTableEntries)
+	}
+	fulfillmentLimit := int(fulfillmentLimit64)
 
 	// Worst-case pack count at fulfillmentLimit: fill entirely with the smallest pack.
 	worstCasePacks := fulfillmentLimit / smallestPackSize
@@ -142,7 +163,7 @@ func newPackingTable(itemsOrdered int, sortedPackSizes []int) packingTable {
 		prevTotal:        prevTotal,
 		prevPack:         prevPack,
 		unreachablePacks: unreachablePacks,
-	}
+	}, nil
 }
 
 // buildOptimalPackingTable populates minPacks and backtracking pointers for

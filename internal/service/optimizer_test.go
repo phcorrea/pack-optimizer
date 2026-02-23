@@ -153,6 +153,8 @@ func TestOptimize_EdgeCases(t *testing.T) {
 }
 
 func TestOptimize_InvalidInput(t *testing.T) {
+	maxInt32 := int(^uint32(0) >> 1)
+
 	_, err := Optimize(0, []int{250, 500})
 	if !errors.Is(err, ErrInvalidItemsOrdered) {
 		t.Fatalf("expected ErrInvalidItemsOrdered, got %v", err)
@@ -171,5 +173,24 @@ func TestOptimize_InvalidInput(t *testing.T) {
 	_, err = Optimize(100, []int{-5, 250})
 	if !errors.Is(err, ErrInvalidPackSizes) {
 		t.Fatalf("expected ErrInvalidPackSizes for negative pack size, got %v", err)
+	}
+
+	_, err = Optimize(maxInt32+1, []int{250, 500})
+	if !errors.Is(err, ErrInvalidItemsOrdered) {
+		t.Fatalf("expected ErrInvalidItemsOrdered for items_ordered above int32 max, got %v", err)
+	}
+
+	_, err = Optimize(100, []int{maxInt32 + 1, 250})
+	if !errors.Is(err, ErrInvalidPackSizes) {
+		t.Fatalf("expected ErrInvalidPackSizes for pack size above int32 max, got %v", err)
+	}
+}
+
+func TestOptimize_BigNumbersReturnsRangeError(t *testing.T) {
+	maxInt32 := int(^uint32(0) >> 1)
+
+	_, err := Optimize(maxInt32-100, []int{maxInt32 - 1000, maxInt32 - 999})
+	if !errors.Is(err, ErrOptimizationTooLarge) {
+		t.Fatalf("expected ErrOptimizationTooLarge, got %v", err)
 	}
 }

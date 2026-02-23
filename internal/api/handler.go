@@ -71,7 +71,7 @@ func (h *handler) handleOptimize(w http.ResponseWriter, r *http.Request) {
 
 	plan, err := service.Optimize(req.ItemsOrdered, packSizesUsed)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidItemsOrdered) || errors.Is(err, service.ErrInvalidPackSizes) {
+		if errors.Is(err, service.ErrInvalidItemsOrdered) || errors.Is(err, service.ErrInvalidPackSizes) || errors.Is(err, service.ErrOptimizationTooLarge) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
