@@ -63,13 +63,7 @@ func (h *handler) handleOptimize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	packSizesUsed, err := service.NormalizePackSizes(req.PackSizes)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	plan, err := service.Optimize(req.ItemsOrdered, packSizesUsed)
+	plan, err := service.Optimize(req.ItemsOrdered, req.PackSizes)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidItemsOrdered) || errors.Is(err, service.ErrInvalidPackSizes) || errors.Is(err, service.ErrOptimizationTooLarge) {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -81,12 +75,20 @@ func (h *handler) handleOptimize(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, optimizeResponse{
 		Plan:          plan,
-		PackSizesUsed: packSizesUsed,
+		PackSizesUsed: packSizesUsedFromPlan(plan),
 	})
 }
 
 func (h *handler) handleStatic(w http.ResponseWriter, r *http.Request) {
 	h.static.ServeHTTP(w, r)
+}
+
+func packSizesUsedFromPlan(plan service.Plan) []int {
+	packSizesUsed := make([]int, 0, len(plan.Packs))
+	for _, pack := range plan.Packs {
+		packSizesUsed = append(packSizesUsed, pack.Size)
+	}
+	return packSizesUsed
 }
 
 func decodeJSON(body io.ReadCloser, dst any) error {

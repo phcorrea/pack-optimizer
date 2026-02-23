@@ -37,9 +37,10 @@ func TestOptimizeEndpoint(t *testing.T) {
 	}
 
 	var payload struct {
-		ItemsOrdered int `json:"items_ordered"`
-		TotalItems   int `json:"total_items"`
-		TotalPacks   int `json:"total_packs"`
+		ItemsOrdered  int   `json:"items_ordered"`
+		TotalItems    int   `json:"total_items"`
+		TotalPacks    int   `json:"total_packs"`
+		PackSizesUsed []int `json:"pack_sizes_used"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode response: %v", err)
@@ -47,6 +48,9 @@ func TestOptimizeEndpoint(t *testing.T) {
 
 	if payload.ItemsOrdered != 251 || payload.TotalItems != 500 || payload.TotalPacks != 1 {
 		t.Fatalf("unexpected optimize response: %+v", payload)
+	}
+	if len(payload.PackSizesUsed) != 1 || payload.PackSizesUsed[0] != 500 {
+		t.Fatalf("unexpected pack_sizes_used: %+v", payload.PackSizesUsed)
 	}
 }
 
