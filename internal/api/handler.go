@@ -16,11 +16,6 @@ type optimizeRequest struct {
 	PackSizes    []int `json:"pack_sizes"`
 }
 
-type optimizeResponse struct {
-	service.Plan
-	PackSizesUsed []int `json:"pack_sizes_used"`
-}
-
 type handler struct {
 	static http.Handler
 }
@@ -73,22 +68,11 @@ func (h *handler) handleOptimize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, optimizeResponse{
-		Plan:          plan,
-		PackSizesUsed: packSizesUsedFromPlan(plan),
-	})
+	writeJSON(w, http.StatusOK, plan)
 }
 
 func (h *handler) handleStatic(w http.ResponseWriter, r *http.Request) {
 	h.static.ServeHTTP(w, r)
-}
-
-func packSizesUsedFromPlan(plan service.Plan) []int {
-	packSizesUsed := make([]int, 0, len(plan.Packs))
-	for _, pack := range plan.Packs {
-		packSizesUsed = append(packSizesUsed, pack.Size)
-	}
-	return packSizesUsed
 }
 
 func decodeJSON(body io.ReadCloser, dst any) error {
