@@ -13,6 +13,8 @@ import (
 	"gymshark/internal/api"
 )
 
+const serverTimeout = 5 * time.Second
+
 func main() {
 	handler := api.NewHandler()
 
@@ -23,8 +25,12 @@ func main() {
 
 	addr := ":" + port
 	server := &http.Server{
-		Addr:    addr,
-		Handler: handler,
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: serverTimeout,
+		ReadTimeout:       serverTimeout,
+		WriteTimeout:      serverTimeout,
+		IdleTimeout:       serverTimeout,
 	}
 
 	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -49,7 +55,7 @@ func main() {
 		log.Printf("shutdown signal received")
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), serverTimeout)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
