@@ -8,7 +8,7 @@
 3. if tied on shipped items, ship the fewest packs
 - Exposes the logic via HTTP API.
 - Serves a small HTML UI to interact with the API.
-- Uses per-request pack sizes.
+- Supports reading/updating default pack sizes via API.
 
 ## Run
 
@@ -22,9 +22,25 @@ Environment variables:
 ## API
 
 - `GET /api/health`
+- `GET /api/pack-sizes`
+- `PUT /api/pack-sizes`
 - `POST /api/optimize`
 ```json
 {"items_ordered":12001,"pack_sizes":[250,500,1000,2000,5000]}
+```
+
+`GET /api/pack-sizes` response example:
+
+```json
+{"pack_sizes":[5000,2000,1000,500,250]}
+```
+
+Update pack sizes:
+
+```bash
+curl -X PUT http://localhost:8080/api/pack-sizes \
+  -H "Content-Type: application/json" \
+  -d '{"pack_sizes":[250,500,1000,2000,5000]}'
 ```
 
 Example:

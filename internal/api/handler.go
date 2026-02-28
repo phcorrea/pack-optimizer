@@ -16,6 +16,10 @@ type optimizeRequest struct {
 	PackSizes    []int `json:"pack_sizes"`
 }
 
+type packSizesPayload struct {
+	PackSizes []int `json:"pack_sizes"`
+}
+
 type handler struct {
 	static http.Handler
 }
@@ -32,6 +36,7 @@ func NewHandler() http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", h.handleHealth)
+	mux.HandleFunc("/api/pack-sizes", h.handlePackSizes)
 	mux.HandleFunc("/api/optimize", h.handleOptimize)
 	mux.HandleFunc("/", h.handleStatic)
 	return mux
@@ -69,6 +74,45 @@ func (h *handler) handleOptimize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, plan)
+}
+
+func (h *handler) handlePackSizes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPut {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	packSizeService, err := service.GetPackSizeService()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "unable to initialize pack sizes")
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		writeJSON(w, http.StatusOK, packSizesPayload{
+			PackSizes: packSizeService.GetPackSizes(),
+		})
+		return
+	}
+
+	var req packSizesPayload
+	if err := decodeJSON(r.Body, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := packSizeService.SetPackSizes(req.PackSizes); err != nil {
+		if errors.Is(err, service.ErrInvalidPackSizes) {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "unable to update pack sizes")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, packSizesPayload{
+		PackSizes: packSizeService.GetPackSizes(),
+	})
 }
 
 func (h *handler) handleStatic(w http.ResponseWriter, r *http.Request) {
