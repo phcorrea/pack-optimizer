@@ -23,7 +23,12 @@ func newTestHandler(t *testing.T) http.Handler {
 		t.Fatalf("SetPackSizes returned error: %v", err)
 	}
 
-	return NewHandler()
+	handler, err := NewHandler()
+	if err != nil {
+		t.Fatalf("NewHandler returned error: %v", err)
+	}
+
+	return handler
 }
 
 func TestUnknownAPIPath_NotFound(t *testing.T) {
@@ -45,7 +50,7 @@ func TestUnknownAPIPath_NotFound(t *testing.T) {
 func TestOptimizeEndpoint(t *testing.T) {
 	srv := newTestHandler(t)
 
-	body := bytes.NewBufferString(`{"items_ordered":251,"pack_sizes":[250,500,1000,2000,5000]}`)
+	body := bytes.NewBufferString(`{"items_ordered":251}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/optimize", body)
 	res := httptest.NewRecorder()
 	srv.ServeHTTP(res, req)
@@ -68,10 +73,44 @@ func TestOptimizeEndpoint(t *testing.T) {
 	}
 }
 
-func TestOptimizeEndpoint_MissingPackSizes(t *testing.T) {
+func TestOptimizeEndpoint_UsesBackendPackSizesOverRequestPayload(t *testing.T) {
 	srv := newTestHandler(t)
 
-	body := bytes.NewBufferString(`{"items_ordered":251}`)
+	packSizeService, err := service.GetPackSizeService()
+	if err != nil {
+		t.Fatalf("GetPackSizeService returned error: %v", err)
+	}
+	if err := packSizeService.SetPackSizes([]int{10, 20}); err != nil {
+		t.Fatalf("SetPackSizes returned error: %v", err)
+	}
+
+	body := bytes.NewBufferString(`{"items_ordered":21}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/optimize", body)
+	res := httptest.NewRecorder()
+	srv.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.Code)
+	}
+
+	var payload struct {
+		ItemsOrdered int `json:"items_ordered"`
+		TotalItems   int `json:"total_items"`
+		TotalPacks   int `json:"total_packs"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if payload.ItemsOrdered != 21 || payload.TotalItems != 30 || payload.TotalPacks != 2 {
+		t.Fatalf("unexpected optimize response: %+v", payload)
+	}
+}
+
+func TestOptimizeEndpoint_RejectsPackSizesField(t *testing.T) {
+	srv := newTestHandler(t)
+
+	body := bytes.NewBufferString(`{"items_ordered":21,"pack_sizes":[1000]}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/optimize", body)
 	res := httptest.NewRecorder()
 	srv.ServeHTTP(res, req)
@@ -84,7 +123,7 @@ func TestOptimizeEndpoint_MissingPackSizes(t *testing.T) {
 func TestOptimizeEndpoint_InvalidItemsOrdered(t *testing.T) {
 	srv := newTestHandler(t)
 
-	body := bytes.NewBufferString(`{"items_ordered":0,"pack_sizes":[250,500]}`)
+	body := bytes.NewBufferString(`{"items_ordered":0}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/optimize", body)
 	res := httptest.NewRecorder()
 	srv.ServeHTTP(res, req)

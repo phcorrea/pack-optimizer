@@ -7,6 +7,65 @@ import (
 	"testing"
 )
 
+func TestNormalizePackSizes(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     []int
+		want      []int
+		expectErr bool
+	}{
+		{
+			name:  "sorts descending and removes duplicates",
+			input: []int{500, 250, 250, 1000},
+			want:  []int{1000, 500, 250},
+		},
+		{
+			name:  "single unique value from duplicates",
+			input: []int{10, 10, 10},
+			want:  []int{10},
+		},
+		{
+			name:      "empty pack sizes",
+			input:     []int{},
+			expectErr: true,
+		},
+		{
+			name:      "zero pack size",
+			input:     []int{0, 250},
+			expectErr: true,
+		},
+		{
+			name:      "negative pack size",
+			input:     []int{-5, 250},
+			expectErr: true,
+		},
+		{
+			name:      "pack size above int32 max",
+			input:     []int{maxInt32Value + 1, 250},
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := NormalizePackSizes(tc.input)
+			if tc.expectErr {
+				if !errors.Is(err, ErrInvalidPackSizes) {
+					t.Fatalf("expected ErrInvalidPackSizes, got %v", err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("NormalizePackSizes returned error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("NormalizePackSizes() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestNewInMemoryPackSizeService(t *testing.T) {
 	service, err := NewInMemoryPackSizeService([]int{250, 500, 1000})
 	if err != nil {

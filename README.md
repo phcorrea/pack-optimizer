@@ -21,26 +21,11 @@ Environment variables:
 
 ## API
 
-- `GET /api/health`
-- `GET /api/pack-sizes`
-- `PUT /api/pack-sizes`
-- `POST /api/optimize`
+### `POST /api/optimize`
+
+Response example:
 ```json
-{"items_ordered":12001,"pack_sizes":[250,500,1000,2000,5000]}
-```
-
-`GET /api/pack-sizes` response example:
-
-```json
-{"pack_sizes":[5000,2000,1000,500,250]}
-```
-
-Update pack sizes:
-
-```bash
-curl -X PUT http://localhost:8080/api/pack-sizes \
-  -H "Content-Type: application/json" \
-  -d '{"pack_sizes":[250,500,1000,2000,5000]}'
+{"items_ordered":12001}
 ```
 
 Example:
@@ -48,7 +33,30 @@ Example:
 ```bash
 curl -X POST http://localhost:8080/api/optimize \
   -H "Content-Type: application/json" \
-  -d '{"items_ordered":12001,"pack_sizes":[250,500,1000,2000,5000]}'
+  -d '{"items_ordered":12001}'
+```
+
+### `GET /api/pack-sizes`
+
+Response example:
+
+```json
+{"pack_sizes":[5000,2000,1000,500,250]}
+```
+
+### `PUT /api/pack-sizes`
+
+Response example:
+
+```json
+{"pack_sizes":[5000,2000,1000,500,250]}
+```
+
+Example:
+```bash
+curl -X PUT http://localhost:8080/api/pack-sizes \
+  -H "Content-Type: application/json" \
+  -d '{"pack_sizes":[250,500,1000,2000,5000]}'
 ```
 
 ## Tests

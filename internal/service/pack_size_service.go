@@ -1,8 +1,45 @@
 package service
 
-import "sync"
+import (
+	"fmt"
+	"sort"
+	"sync"
+)
 
 var defaultPackSizes = []int{250, 500, 1000, 2000, 5000}
+
+// NormalizePackSizes validates pack sizes, removes duplicates, and returns
+// a descending-sorted slice so larger packs are evaluated first.
+func NormalizePackSizes(packSizes []int) ([]int, error) {
+	if len(packSizes) == 0 {
+		return nil, ErrInvalidPackSizes
+	}
+
+	// seen removes duplicates to improve optimization performance.
+	seen := make(map[int]struct{}, len(packSizes))
+	normalized := make([]int, 0, len(packSizes))
+	for _, size := range packSizes {
+		if size <= 0 {
+			return nil, fmt.Errorf("%w: %d", ErrInvalidPackSizes, size)
+		}
+		if size > maxInt32Value {
+			return nil, fmt.Errorf("%w: %d exceeds int32 max value %d", ErrInvalidPackSizes, size, maxInt32Value)
+		}
+		if _, duplicate := seen[size]; duplicate {
+			continue
+		}
+
+		seen[size] = struct{}{}
+		normalized = append(normalized, size)
+	}
+
+	if len(normalized) == 0 {
+		return nil, ErrInvalidPackSizes
+	}
+
+	sort.Sort(sort.Reverse(sort.IntSlice(normalized)))
+	return normalized, nil
+}
 
 // PackSizeService manages configured pack sizes.
 type PackSizeService interface {

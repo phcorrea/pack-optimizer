@@ -5,6 +5,18 @@ import (
 	"testing"
 )
 
+func setOptimizerPackSizes(t *testing.T, packSizes []int) {
+	t.Helper()
+
+	packSizeService, err := GetPackSizeService()
+	if err != nil {
+		t.Fatalf("GetPackSizeService returned error: %v", err)
+	}
+	if err := packSizeService.SetPackSizes(packSizes); err != nil {
+		t.Fatalf("SetPackSizes returned error: %v", err)
+	}
+}
+
 func TestOptimize_ChallengeExamples(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -50,7 +62,9 @@ func TestOptimize_ChallengeExamples(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			plan, err := Optimize(tc.ordered, tc.packSizes)
+			setOptimizerPackSizes(t, tc.packSizes)
+
+			plan, err := Optimize(tc.ordered)
 			if err != nil {
 				t.Fatalf("Optimize returned error: %v", err)
 			}
@@ -85,14 +99,6 @@ func TestOptimize_EdgeCases(t *testing.T) {
 		totalPack int
 		packs     []PackBreakdown
 	}{
-		{
-			name:      "unsorted and duplicate pack sizes",
-			packSizes: []int{500, 250, 250, 1000},
-			ordered:   501,
-			total:     750,
-			totalPack: 2,
-			packs:     []PackBreakdown{{Size: 500, Count: 1}, {Size: 250, Count: 1}},
-		},
 		{
 			name:      "single pack size requires over shipment",
 			packSizes: []int{53},
@@ -129,7 +135,9 @@ func TestOptimize_EdgeCases(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			plan, err := Optimize(tc.ordered, tc.packSizes)
+			setOptimizerPackSizes(t, tc.packSizes)
+
+			plan, err := Optimize(tc.ordered)
 			if err != nil {
 				t.Fatalf("Optimize returned error: %v", err)
 			}
@@ -152,44 +160,25 @@ func TestOptimize_EdgeCases(t *testing.T) {
 	}
 }
 
-func TestOptimize_InvalidInput(t *testing.T) {
+func TestOptimize_InvalidItemsOrdered(t *testing.T) {
 	maxInt32 := int(^uint32(0) >> 1)
 
-	_, err := Optimize(0, []int{250, 500})
+	_, err := Optimize(0)
 	if !errors.Is(err, ErrInvalidItemsOrdered) {
 		t.Fatalf("expected ErrInvalidItemsOrdered, got %v", err)
 	}
 
-	_, err = Optimize(100, []int{})
-	if !errors.Is(err, ErrInvalidPackSizes) {
-		t.Fatalf("expected ErrInvalidPackSizes, got %v", err)
-	}
-
-	_, err = Optimize(100, []int{0, 250})
-	if !errors.Is(err, ErrInvalidPackSizes) {
-		t.Fatalf("expected ErrInvalidPackSizes for zero pack size, got %v", err)
-	}
-
-	_, err = Optimize(100, []int{-5, 250})
-	if !errors.Is(err, ErrInvalidPackSizes) {
-		t.Fatalf("expected ErrInvalidPackSizes for negative pack size, got %v", err)
-	}
-
-	_, err = Optimize(maxInt32+1, []int{250, 500})
+	_, err = Optimize(maxInt32 + 1)
 	if !errors.Is(err, ErrInvalidItemsOrdered) {
 		t.Fatalf("expected ErrInvalidItemsOrdered for items_ordered above int32 max, got %v", err)
-	}
-
-	_, err = Optimize(100, []int{maxInt32 + 1, 250})
-	if !errors.Is(err, ErrInvalidPackSizes) {
-		t.Fatalf("expected ErrInvalidPackSizes for pack size above int32 max, got %v", err)
 	}
 }
 
 func TestOptimize_BigNumbersReturnsRangeError(t *testing.T) {
 	maxInt32 := int(^uint32(0) >> 1)
+	setOptimizerPackSizes(t, []int{maxInt32 - 1000, maxInt32 - 999})
 
-	_, err := Optimize(maxInt32-100, []int{maxInt32 - 1000, maxInt32 - 999})
+	_, err := Optimize(maxInt32 - 100)
 	if !errors.Is(err, ErrOptimizationTooLarge) {
 		t.Fatalf("expected ErrOptimizationTooLarge, got %v", err)
 	}

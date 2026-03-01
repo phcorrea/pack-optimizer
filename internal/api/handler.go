@@ -12,8 +12,7 @@ import (
 )
 
 type optimizeRequest struct {
-	ItemsOrdered int   `json:"items_ordered"`
-	PackSizes    []int `json:"pack_sizes"`
+	ItemsOrdered int `json:"items_ordered"`
 }
 
 type packSizesPayload struct {
@@ -24,10 +23,10 @@ type handler struct {
 	static http.Handler
 }
 
-func NewHandler() http.Handler {
+func NewHandler() (http.Handler, error) {
 	staticFiles, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	h := &handler{
@@ -39,7 +38,7 @@ func NewHandler() http.Handler {
 	mux.HandleFunc("/api/pack-sizes", h.handlePackSizes)
 	mux.HandleFunc("/api/optimize", h.handleOptimize)
 	mux.HandleFunc("/", h.handleStatic)
-	return mux
+	return mux, nil
 }
 
 func (h *handler) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +62,7 @@ func (h *handler) handleOptimize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	plan, err := service.Optimize(req.ItemsOrdered, req.PackSizes)
+	plan, err := service.Optimize(req.ItemsOrdered)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidItemsOrdered) || errors.Is(err, service.ErrInvalidPackSizes) || errors.Is(err, service.ErrOptimizationTooLarge) {
 			writeError(w, http.StatusBadRequest, err.Error())

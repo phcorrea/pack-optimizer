@@ -16,7 +16,10 @@ import (
 const serverTimeout = 5 * time.Second
 
 func main() {
-	handler := api.NewHandler()
+	handler, err := api.NewHandler()
+	if err != nil {
+		log.Fatalf("unable to initialize handler: %v", err)
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {

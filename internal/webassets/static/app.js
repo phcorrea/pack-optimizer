@@ -1,10 +1,12 @@
 const optimizeForm = document.getElementById("optimize-form");
+const updatePackSizesForm = document.getElementById("update-pack-sizes-form");
 const itemsOrderedInput = document.getElementById("items-ordered");
 const packSizesInput = document.getElementById("pack-sizes");
 const resultSection = document.getElementById("result");
 const summary = document.getElementById("summary");
 const packsBody = document.getElementById("packs-body");
 const errorText = document.getElementById("error");
+const packSizeUpdateMessage = document.getElementById("pack-size-update-message");
 
 function hideError() {
   errorText.classList.add("hidden");
@@ -14,6 +16,16 @@ function hideError() {
 function showError(message) {
   errorText.textContent = message;
   errorText.classList.remove("hidden");
+}
+
+function hideUpdateMessage() {
+  packSizeUpdateMessage.classList.add("hidden");
+  packSizeUpdateMessage.textContent = "";
+}
+
+function showUpdateMessage(message) {
+  packSizeUpdateMessage.textContent = message;
+  packSizeUpdateMessage.classList.remove("hidden");
 }
 
 async function apiFetch(path, options = {}) {
@@ -71,16 +83,38 @@ function parsePackSizes(raw) {
   return parsed;
 }
 
-function updateQueryString(itemsOrdered, packSizes) {
+function updateQueryString(itemsOrdered) {
   const params = new URLSearchParams();
-  params.set("items_ordered", String(itemsOrdered));
-  params.set("pack_sizes", packSizes.join(","));
+  if (itemsOrdered !== null) {
+    params.set("items_ordered", String(itemsOrdered));
+  }
 
   const query = params.toString();
   const nextUrl = query
     ? `${window.location.pathname}?${query}`
     : window.location.pathname;
   window.history.replaceState({}, "", nextUrl);
+}
+
+async function fetchPackSizes() {
+  const data = await apiFetch("/api/pack-sizes");
+  if (!Array.isArray(data.pack_sizes)) {
+    throw new Error("invalid pack_sizes response");
+  }
+
+  return parsePackSizes(data.pack_sizes.join(","));
+}
+
+async function updatePackSizes(packSizes) {
+  const data = await apiFetch("/api/pack-sizes", {
+    method: "PUT",
+    body: JSON.stringify({ pack_sizes: packSizes }),
+  });
+  if (!Array.isArray(data.pack_sizes)) {
+    throw new Error("invalid pack_sizes response");
+  }
+
+  return parsePackSizes(data.pack_sizes.join(","));
 }
 
 function renderResult(data) {
@@ -96,8 +130,8 @@ function renderResult(data) {
   resultSection.classList.remove("hidden");
 }
 
-async function runOptimization(itemsOrdered, packSizes) {
-  const payload = { items_ordered: itemsOrdered, pack_sizes: packSizes };
+async function runOptimization(itemsOrdered) {
+  const payload = { items_ordered: itemsOrdered };
   const data = await apiFetch("/api/optimize", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -108,6 +142,7 @@ async function runOptimization(itemsOrdered, packSizes) {
 optimizeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   hideError();
+  hideUpdateMessage();
 
   const itemsOrdered = parseItemsOrdered(itemsOrderedInput.value);
   if (itemsOrdered === null) {
@@ -116,9 +151,28 @@ optimizeForm.addEventListener("submit", async (event) => {
   }
 
   try {
+    await runOptimization(itemsOrdered);
+    updateQueryString(itemsOrdered);
+  } catch (err) {
+    showError(err.message);
+  }
+});
+
+updatePackSizesForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  hideError();
+  hideUpdateMessage();
+
+  try {
     const packSizes = parsePackSizes(packSizesInput.value);
-    await runOptimization(itemsOrdered, packSizes);
-    updateQueryString(itemsOrdered, packSizes);
+    const updatedPackSizes = await updatePackSizes(packSizes);
+
+    packSizesInput.value = updatedPackSizes.join(",");
+
+    const itemsOrdered = parseItemsOrdered(itemsOrderedInput.value);
+    updateQueryString(itemsOrdered);
+
+    showUpdateMessage("Backend pack sizes updated.");
   } catch (err) {
     showError(err.message);
   }
@@ -126,15 +180,22 @@ optimizeForm.addEventListener("submit", async (event) => {
 
 async function initializeFromQueryString() {
   hideError();
+  hideUpdateMessage();
   const params = new URLSearchParams(window.location.search);
   const queryItemsOrdered = params.get("items_ordered");
-  const queryPackSizes = params.get("pack_sizes");
 
-  if (queryPackSizes !== null) {
-    packSizesInput.value = queryPackSizes;
+  let packSizes;
+  try {
+    packSizes = await fetchPackSizes();
+  } catch (err) {
+    showError(`Unable to load pack_sizes: ${err.message}`);
+    return;
   }
 
+  packSizesInput.value = packSizes.join(",");
+
   if (queryItemsOrdered === null) {
+    updateQueryString(null);
     return;
   }
 
@@ -144,21 +205,11 @@ async function initializeFromQueryString() {
     return;
   }
 
-  let packSizes;
-  try {
-    packSizes = parsePackSizes(queryPackSizes === null ? packSizesInput.value : queryPackSizes);
-  } catch (err) {
-    showError(`Invalid pack_sizes query param: ${err.message}`);
-    return;
-  }
-
   itemsOrderedInput.value = String(itemsOrdered);
 
   try {
-    await runOptimization(itemsOrdered, packSizes);
-    if (queryPackSizes === null) {
-      updateQueryString(itemsOrdered, packSizes);
-    }
+    await runOptimization(itemsOrdered);
+    updateQueryString(itemsOrdered);
   } catch (err) {
     showError(err.message);
   }

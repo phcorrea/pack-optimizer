@@ -12,18 +12,22 @@
         <h1>Pack Optimizer</h1>
         <p>Optimize pack combinations for a customer order.</p>
 
-        <form id="optimize-form">
-          <label for="items-ordered">Items ordered</label>
-          <input id="items-ordered" type="number" min="1" required />
-
+        <form id="update-pack-sizes-form">
           <label for="pack-sizes">Pack sizes</label>
           <input
             id="pack-sizes"
             type="text"
             placeholder="e.g. 250,500,1000,2000,5000"
-            value="250,500,1000,2000,5000"
             required
           />
+          <button type="submit">Update Pack Sizes</button>
+        </form>
+        <p id="pack-size-update-message" class="message hidden"></p>
+        <br />
+
+        <form id="optimize-form">
+          <label for="items-ordered">Items ordered</label>
+          <input id="items-ordered" type="number" min="1" required />
           <button type="submit">Optimize</button>
         </form>
 

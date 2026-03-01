@@ -3,16 +3,15 @@ package service
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"math"
 )
 
-const maxInt32Value = int(^uint32(0) >> 1)
+const maxInt32Value = math.MaxInt32
 
 var (
 	ErrInvalidItemsOrdered  = errors.New("items_ordered must be greater than zero")
 	ErrInvalidPackSizes     = errors.New("pack_sizes must contain at least one positive integer")
 	ErrOptimizationTooLarge = errors.New("optimization range is too large")
-	errNoPackingPlan        = errors.New("no valid packing combination found")
 	errReconstructPlan      = errors.New("unable to reconstruct packing combination")
 )
 
@@ -30,47 +29,22 @@ type Plan struct {
 	Packs        []PackBreakdown `json:"packs"`
 }
 
-// NormalizePackSizes validates pack sizes, removes duplicates, and returns
-// a descending-sorted slice so larger packs are evaluated first.
-func NormalizePackSizes(packSizes []int) ([]int, error) {
-	if len(packSizes) == 0 {
-		return nil, ErrInvalidPackSizes
-	}
-
-	// seen removes duplicates to improve the time complexity of buildOptimalPackingTable.
-	seen := make(map[int]struct{}, len(packSizes))
-	normalized := make([]int, 0, len(packSizes))
-	for _, size := range packSizes {
-		if size <= 0 {
-			return nil, fmt.Errorf("%w: %d", ErrInvalidPackSizes, size)
-		}
-		if size > maxInt32Value {
-			return nil, fmt.Errorf("%w: %d exceeds int32 max value %d", ErrInvalidPackSizes, size, maxInt32Value)
-		}
-		if _, duplicate := seen[size]; duplicate {
-			continue
-		}
-		seen[size] = struct{}{}
-		normalized = append(normalized, size)
-	}
-
-	if len(normalized) == 0 {
-		return nil, ErrInvalidPackSizes
-	}
-
-	sort.Sort(sort.Reverse(sort.IntSlice(normalized)))
-	return normalized, nil
-}
-
 // Optimize computes the fulfillment plan that meets or exceeds itemsOrdered
 // with minimum overfill and, for that total, the minimum number of packs.
-func Optimize(itemsOrdered int, packSizes []int) (Plan, error) {
+func Optimize(itemsOrdered int) (Plan, error) {
 	if itemsOrdered <= 0 {
 		return Plan{}, ErrInvalidItemsOrdered
 	}
 	if itemsOrdered > maxInt32Value {
-		return Plan{}, fmt.Errorf("%w: %d exceeds int32 max value %d", ErrInvalidItemsOrdered, itemsOrdered, maxInt32Value)
+		return Plan{}, fmt.Errorf("%w: %d exceeds max value %d", ErrInvalidItemsOrdered, itemsOrdered, maxInt32Value)
 	}
+
+	packSizeService, err := GetPackSizeService()
+	if err != nil {
+		return Plan{}, err
+	}
+
+	packSizes := packSizeService.GetPackSizes()
 
 	normalized, err := NormalizePackSizes(packSizes)
 	if err != nil {
@@ -83,10 +57,7 @@ func Optimize(itemsOrdered int, packSizes []int) (Plan, error) {
 	}
 	table.buildOptimalPackingTable()
 
-	chosenTotal, err := table.chooseFulfillmentTotal()
-	if err != nil {
-		return Plan{}, err
-	}
+	chosenTotal := table.chooseFulfillmentTotal()
 
 	breakdown, err := table.buildBreakdown(chosenTotal)
 	if err != nil {
@@ -190,14 +161,16 @@ func (t *packingTable) buildOptimalPackingTable() {
 
 // chooseFulfillmentTotal returns the smallest reachable total that is
 // at least itemsOrdered, satisfying the no-underfill constraint.
-func (t *packingTable) chooseFulfillmentTotal() (int, error) {
+func (t *packingTable) chooseFulfillmentTotal() int {
 	for total := t.itemsOrdered; total < len(t.minPacks); total++ {
 		if t.minPacks[total] != t.unreachablePacks {
 			// When a total that can be fulfilled is found, return it immediately. This ensures we get the closest fulfillment without going under.
-			return total, nil
+			return total
 		}
 	}
-	return -1, errNoPackingPlan
+	// Invariant: at least one total in range is reachable (the next multiple
+	// of the largest pack size is always within fulfillmentLimit).
+	return t.fulfillmentLimit
 }
 
 // buildBreakdown reconstructs the chosen solution by following prevTotal and
